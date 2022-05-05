@@ -1,0 +1,25 @@
+{
+  "name": "starknetjs-signer-ledger",
+  "version": "1.0.0",
+  "description": "Implements starknet.js SignerInterface for Ledger devices",
+  "main": "dist/ledger-signer.js",
+  "types": "dist/index.d.ts",
+  "repository": "git@github.com:yogh333/starknetjs-signer-ledger.git",
+  "author": "yogh333 <98384638+jcaporossi-ledger@users.noreply.github.com>",
+  "license": "Apache-2.0",
+  "private": false,
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "typescript": "^4.6.4"
+  },
+  "dependencies": {
+    "@ledgerhq/hw-transport": "^6.27.1",
+    "@ledgerhq/hw-transport-node-hid": "^6.27.1",
+    "@ledgerhq/hw-transport-webhid": "^6.27.1",
+    "@types/node": "^17.0.31",
+    "starknet": "^3.9.0"
+  }
+}
