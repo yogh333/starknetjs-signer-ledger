@@ -39,7 +39,6 @@ export class LedgerSigner implements SignerInterface {
   public async getPubKey(): Promise<string> {
     const app = await this.getStarwareApp();
     const { publicKey } = await app.getPubKey(this.derivationPath);
-
     return `0x${toHexString(publicKey).slice(2, 2 + 64)}`;
   }
 
@@ -66,8 +65,6 @@ export class LedgerSigner implements SignerInterface {
 
   public async sign(msg: string): Promise<Signature> {
     const app = await this.getStarwareApp();
-
-    console.log(`Message = ${msg}`);
 
     const response = await app.signFelt(this.derivationPath, msg);
 
