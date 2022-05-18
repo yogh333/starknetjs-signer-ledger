@@ -4,13 +4,15 @@ import TransportNodeHid from '@ledgerhq/hw-transport-node-hid';
 import TransportWebHID from '@ledgerhq/hw-transport-webhid';
 
 import {
-    SignerInterface, 
-    Invocation, 
-    InvocationsSignerDetails, 
-    Signature, 
-    encode, 
-    hash, 
-    typedData 
+  SignerInterface,
+  Invocation,
+  InvocationsSignerDetails,
+  Signature,
+  encode,
+  hash,
+  typedData,
+  transaction,
+  Abi,
 } from 'starknet';
 
 function toHexString(byteArray: Uint8Array): string {
@@ -44,14 +46,26 @@ export class LedgerSigner implements SignerInterface {
 
   public async signTransaction(
     transactions: Invocation[],
-    transactionsDetail: InvocationsSignerDetails
+    transactionsDetail: InvocationsSignerDetails,
+    abis?: Abi[]
   ): Promise<Signature> {
-    const msgHash = hash.hashMulticall(
-      transactionsDetail.walletAddress,
+    if (abis && abis.length !== transactions.length) {
+      throw new Error('ABI must be provided for each transaction or no transaction');
+    }
+    // now use abi to display decoded data somewhere, but as this signer is headless, we can't do that
+
+    const calldata = transaction.fromCallsToExecuteCalldataWithNonce(
       transactions,
-      transactionsDetail.nonce.toString(),
-      transactionsDetail.maxFee.toString(),
-      transactionsDetail.version.toString()
+      transactionsDetail.nonce
+    );
+
+    const msgHash = hash.calculcateTransactionHash(
+      transactionsDetail.walletAddress,
+      transactionsDetail.version,
+      hash.getSelectorFromName('__execute__'),
+      calldata,
+      transactionsDetail.maxFee,
+      transactionsDetail.chainId
     );
 
     return this.sign(msgHash);
@@ -68,6 +82,9 @@ export class LedgerSigner implements SignerInterface {
 
     const response = await app.signFelt(this.derivationPath, msg);
 
-    return [encode.addHexPrefix(toHexString(response.r)), encode.addHexPrefix(toHexString(response.s))];
+    return [
+      encode.addHexPrefix(toHexString(response.r)),
+      encode.addHexPrefix(toHexString(response.s)),
+    ];
   }
 }
