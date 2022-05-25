@@ -1,16 +1,22 @@
 import { LedgerSigner } from '../src/ledger-signer';
 import { Account, Contract, defaultProvider, number } from 'starknet';
 import { compiledArgentAccount, compiledTestDapp } from './fixtures';
-import { DeviceShouldStayInApp } from '../../../Ledger/ledgerjs/node_modules/@ledgerhq/errors/lib';
+import TransportNodeHid from '@ledgerhq/hw-transport-node-hid';
+import Transport from '@ledgerhq/hw-transport';
 
 describe('deploy and test Wallet', () => {
-  const signer = new LedgerSigner();
-  let starkKeyPub;
+  let signer: LedgerSigner;
+  let transport: Transport;
+  let starkKeyPub: string;
 
   let account: Account;
   let dapp: Contract;
 
   beforeAll(async () => {
+    transport = await TransportNodeHid.create();
+
+    signer = new LedgerSigner(transport);
+
     starkKeyPub = await signer.getPubKey();
 
     const accountResponse = await defaultProvider.deployContract({
@@ -18,23 +24,17 @@ describe('deploy and test Wallet', () => {
       addressSalt: starkKeyPub,
     });
 
-    console.log('deploy account contract' + accountResponse.address);
-
     const contract = new Contract(compiledArgentAccount.abi, accountResponse.address);
     expect(accountResponse.code).toBe('TRANSACTION_RECEIVED');
 
     const initializeResponse = await contract.initialize(starkKeyPub, '0');
     expect(initializeResponse.code).toBe('TRANSACTION_RECEIVED');
 
-    console.log('initialize account contract with Pub Key' + starkKeyPub);
-
     account = new Account(defaultProvider, accountResponse.address, signer);
 
     const dappResponse = await defaultProvider.deployContract({
       contract: compiledTestDapp,
     });
-
-    console.log('deploy ok dapp ' + dappResponse.address);
 
     dapp = new Contract(compiledTestDapp.abi, dappResponse.address);
     expect(dappResponse.code).toBe('TRANSACTION_RECEIVED');
@@ -44,16 +44,6 @@ describe('deploy and test Wallet', () => {
   test('same wallet address', () => {
     expect(account.address).toBe(account.address);
   });
-
-  /*test('read nonce', async () => {
-    const { result } = await account.callContract({
-      contractAddress: account.address,
-      entrypoint: 'get_nonce',
-    });
-    const nonce = result[0];
-
-    expect(number.toBN(nonce).toString()).toStrictEqual(number.toBN(0).toString());
-  });*/
 
   test('is_validsignature', async () => {
     const msg = '0x749552d5a30f49c46e5e07f20bfc5dbe7b22cf90fcf7848b4a7ff0270400e79';

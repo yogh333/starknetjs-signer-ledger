@@ -1,7 +1,5 @@
-import Stark from '@ledgerhq/hw-app-starknet';
+import Stark from '@yogh/hw-app-starknet';
 import Transport from '@ledgerhq/hw-transport';
-import TransportNodeHid from '@ledgerhq/hw-transport-node-hid';
-import TransportWebHID from '@ledgerhq/hw-transport-webhid';
 
 import {
   SignerInterface,
@@ -22,26 +20,27 @@ function toHexString(byteArray: Uint8Array): string {
 }
 
 export class LedgerSigner implements SignerInterface {
-  public derivationPath = "m/2645'/579218131'/0'/0'";
+  public derivationPath = "m/2645'/1195502025'/1148870696'/0'/0'/0";
 
   private transport: Transport | undefined;
 
-  private async getStarwareApp(): Promise<Stark> {
-    if (!this.transport) {
-      try {
-        if (process.env.NODE_ENV === 'test') this.transport = await TransportNodeHid.create();
-        else this.transport = await TransportWebHID.create();
-      } catch {
-        throw new Error('Device connection error');
-      }
-    }
-    return new Stark(this.transport);
+  public constructor(transport: Transport, derivationPath?: string) {
+    this.transport = transport;
+    if (derivationPath) 
+      this.derivationPath = derivationPath;
   }
 
   public async getPubKey(): Promise<string> {
-    const app = await this.getStarwareApp();
-    const { publicKey } = await app.getPubKey(this.derivationPath);
-    return `0x${toHexString(publicKey).slice(2, 2 + 64)}`;
+    try {
+      if (!this.transport) {
+        throw new Error('Uninitialized transport!');
+      }
+      const app = new Stark(this.transport);
+      const { publicKey } = await app.getPubKey(this.derivationPath);
+      return `0x${toHexString(publicKey).slice(2, 2 + 64)}`;
+    } catch (err) {
+      throw err;
+    }
   }
 
   public async signTransaction(
@@ -78,13 +77,18 @@ export class LedgerSigner implements SignerInterface {
   }
 
   public async sign(msg: string): Promise<Signature> {
-    const app = await this.getStarwareApp();
-
-    const response = await app.signFelt(this.derivationPath, msg);
-
-    return [
-      encode.addHexPrefix(toHexString(response.r)),
-      encode.addHexPrefix(toHexString(response.s)),
-    ];
+    try {
+      if (!this.transport) {
+        throw new Error('Uninitialized transport!');
+      }
+      const app = new Stark(this.transport);
+      const response = await app.signFelt(this.derivationPath, msg);
+      return [
+        encode.addHexPrefix(toHexString(response.r)),
+        encode.addHexPrefix(toHexString(response.s)),
+      ];
+    } catch (err) {
+      throw err;
+    }
   }
 }
