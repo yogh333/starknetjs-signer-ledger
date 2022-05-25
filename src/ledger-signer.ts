@@ -1,5 +1,6 @@
 import Stark from '@yogh/hw-app-starknet';
 import Transport from '@ledgerhq/hw-transport';
+import TransportWebUSB from '@ledgerhq/hw-transport-webusb';
 
 import {
   SignerInterface,
@@ -20,23 +21,34 @@ function toHexString(byteArray: Uint8Array): string {
 }
 
 export class LedgerSigner implements SignerInterface {
-  public derivationPath = "m/2645'/1195502025'/1148870696'/0'/0'/0";
+  public derivationPath: string;
 
   private transport: Transport | undefined;
+  private external_transport_flag: boolean;
 
-  public constructor(transport: Transport, derivationPath?: string) {
-    this.transport = transport;
-    if (derivationPath) 
-      this.derivationPath = derivationPath;
+  static async askPermission(): Promise<void> {
+    const transport = await TransportWebUSB.create();
+    await transport.close();
+  }
+
+  public constructor(derivationPath: string, transport?: Transport) {
+    this.derivationPath = derivationPath;
+    if (transport) {
+      this.transport = transport;
+      this.external_transport_flag = true;
+    } else this.external_transport_flag = false;
   }
 
   public async getPubKey(): Promise<string> {
     try {
-      if (!this.transport) {
+      if (this.external_transport_flag && !this.transport) {
         throw new Error('Uninitialized transport!');
+      } else if (!this.external_transport_flag) {
+        this.transport = await TransportWebUSB.create();
       }
-      const app = new Stark(this.transport);
+      const app = new Stark(this.transport as Transport);
       const { publicKey } = await app.getPubKey(this.derivationPath);
+      if (!this.external_transport_flag) await this.transport?.close();
       return `0x${toHexString(publicKey).slice(2, 2 + 64)}`;
     } catch (err) {
       throw err;
@@ -78,11 +90,14 @@ export class LedgerSigner implements SignerInterface {
 
   public async sign(msg: string): Promise<Signature> {
     try {
-      if (!this.transport) {
+      if (this.external_transport_flag && !this.transport) {
         throw new Error('Uninitialized transport!');
+      } else if (!this.external_transport_flag) {
+        this.transport = await TransportWebUSB.create();
       }
-      const app = new Stark(this.transport);
+      const app = new Stark(this.transport as Transport);
       const response = await app.signFelt(this.derivationPath, msg);
+      if (!this.external_transport_flag) await this.transport?.close();
       return [
         encode.addHexPrefix(toHexString(response.r)),
         encode.addHexPrefix(toHexString(response.s)),

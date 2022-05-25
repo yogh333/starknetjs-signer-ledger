@@ -4,6 +4,8 @@ import { compiledArgentAccount } from './fixtures';
 import TransportNodeHid from '@ledgerhq/hw-transport-node-hid';
 import Transport from '@ledgerhq/hw-transport';
 
+const PATH = "m/2645'/1195502025'/1148870696'/0'/0'/0";
+
 describe('deploy and test Wallet', () => {
   let transport: Transport;
 
@@ -14,7 +16,7 @@ describe('deploy and test Wallet', () => {
   beforeAll(async () => {
     transport = await TransportNodeHid.create();
 
-    signer = new LedgerSigner(transport);
+    signer = new LedgerSigner(PATH, transport);
 
     const starkKeyPub = await signer.getPubKey();
 
@@ -22,7 +24,6 @@ describe('deploy and test Wallet', () => {
       contract: compiledArgentAccount,
       addressSalt: starkKeyPub,
     });
-
 
     contract = new Contract(compiledArgentAccount.abi, accountResponse.address);
     expect(accountResponse.code).toBe('TRANSACTION_RECEIVED');
