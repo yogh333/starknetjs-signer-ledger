@@ -1,6 +1,6 @@
 {
   "name": "@yogh/starknetjs-signer-ledger",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Implements starknet.js SignerInterface for Ledger devices",
   "main": "dist/ledger-signer.js",
   "types": "dist/ledger-signer.d.ts",

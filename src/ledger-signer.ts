@@ -12,6 +12,7 @@ import {
   typedData,
   transaction,
   Abi,
+  number,
 } from 'starknet';
 
 function toHexString(byteArray: Uint8Array): string {
@@ -48,7 +49,9 @@ export class LedgerSigner implements SignerInterface {
       }
       const app = new Stark(this.transport as Transport);
       const { publicKey } = await app.getPubKey(this.derivationPath);
-      if (!this.external_transport_flag) await this.transport?.close();
+      if (!this.external_transport_flag) {
+        await this.transport?.close();
+      }
       return `0x${toHexString(publicKey).slice(2, 2 + 64)}`;
     } catch (err) {
       throw err;
@@ -79,16 +82,20 @@ export class LedgerSigner implements SignerInterface {
       transactionsDetail.chainId
     );
 
-    return this.sign(msgHash);
+    const signature = await this.sign(msgHash, transactionsDetail.maxFee == 0 ? false : true);
+
+    return signature;
   }
 
   public async signMessage(data: typedData.TypedData, accountAddress: string): Promise<Signature> {
     const msgHash = typedData.getMessageHash(data, accountAddress);
 
-    return this.sign(msgHash);
+    const signature = await this.sign(msgHash, true);
+
+    return signature;
   }
 
-  public async sign(msg: string): Promise<Signature> {
+  private async sign(msg: string, show: boolean): Promise<Signature> {
     try {
       if (this.external_transport_flag && !this.transport) {
         throw new Error('Uninitialized transport!');
@@ -96,7 +103,9 @@ export class LedgerSigner implements SignerInterface {
         this.transport = await TransportWebUSB.create();
       }
       const app = new Stark(this.transport as Transport);
-      const response = await app.signFelt(this.derivationPath, msg);
+
+      const response = await app.signFelt(this.derivationPath, msg, show);
+
       if (!this.external_transport_flag) await this.transport?.close();
       return [
         encode.addHexPrefix(toHexString(response.r)),
