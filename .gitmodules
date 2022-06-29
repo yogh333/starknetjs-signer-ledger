@@ -1,3 +1,0 @@
-[submodule "deps/starknet.js"]
-	path = deps/starknet.js
-	url = https://github.com/0xs34n/starknet.js.git
