@@ -1241,6 +1241,16 @@
     node-hid "2.1.1"
     usb "^1.7.0"
 
+"@ledgerhq/hw-transport-node-speculos@^6.27.1":
+  version "6.27.1"
+  resolved "https://registry.yarnpkg.com/@ledgerhq/hw-transport-node-speculos/-/hw-transport-node-speculos-6.27.1.tgz#46539775a3a871aed1ee9dc4314afb8c6fbb7889"
+  integrity sha512-HOf1Oy6DBaoFdr0HkRAgyICILfL1rNUoy3v17ui+W5ftIKoRivxw8OhvFSWN8SnflqKlVfRU5hQmH26fpmVh0w==
+  dependencies:
+    "@ledgerhq/errors" "^6.10.0"
+    "@ledgerhq/hw-transport" "^6.27.1"
+    "@ledgerhq/logs" "^6.10.0"
+    rxjs "6"
+
 "@ledgerhq/hw-transport-webusb@^6.27.1":
   version "6.27.1"
   resolved "https://registry.yarnpkg.com/@ledgerhq/hw-transport-webusb/-/hw-transport-webusb-6.27.1.tgz#62be3b2e5f0d54ae06d066571e4408a807d0f01f"
