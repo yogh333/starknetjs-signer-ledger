@@ -1,6 +1,6 @@
 import { LedgerSigner } from '../src/ledger-signer';
 import { Account, Contract, defaultProvider, number } from 'starknet';
-import { compiledArgentAccount, compiledTestDapp } from './fixtures';
+import { compiledOpenZeppelinAccount, compiledTestDapp, getTestProvider } from './fixtures';
 import TransportNodeHid from '@ledgerhq/hw-transport-node-hid';
 import Transport from '@ledgerhq/hw-transport';
 
@@ -14,6 +14,8 @@ describe('deploy and test Wallet', () => {
   let account: Account;
   let dapp: Contract;
 
+  const provider = getTestProvider();
+
   beforeAll(async () => {
     transport = await TransportNodeHid.create();
 
@@ -21,26 +23,25 @@ describe('deploy and test Wallet', () => {
 
     starkKeyPub = await signer.getPubKey();
 
-    const accountResponse = await defaultProvider.deployContract({
-      contract: compiledArgentAccount,
+    const accountResponse = await provider.deployContract({
+      contract: compiledOpenZeppelinAccount,
+      constructorCalldata: [starkKeyPub],
       addressSalt: starkKeyPub,
     });
-
-    const contract = new Contract(compiledArgentAccount.abi, accountResponse.address);
     expect(accountResponse.code).toBe('TRANSACTION_RECEIVED');
 
-    const initializeResponse = await contract.initialize(starkKeyPub, '0');
-    expect(initializeResponse.code).toBe('TRANSACTION_RECEIVED');
+    const contract = new Contract(compiledOpenZeppelinAccount.abi, accountResponse.address as string);
 
-    account = new Account(defaultProvider, accountResponse.address, signer);
+    account = new Account(provider, accountResponse.address as string, signer);
 
-    const dappResponse = await defaultProvider.deployContract({
+    const dappResponse = await provider.deployContract({
       contract: compiledTestDapp,
     });
-
-    dapp = new Contract(compiledTestDapp.abi, dappResponse.address);
     expect(dappResponse.code).toBe('TRANSACTION_RECEIVED');
-    await defaultProvider.waitForTransaction(dappResponse.transaction_hash);
+
+    dapp = new Contract(compiledTestDapp.abi, dappResponse.address as string, provider);
+
+    await provider.waitForTransaction(dappResponse.transaction_hash);
   });
 
   test('same wallet address', () => {
@@ -49,7 +50,7 @@ describe('deploy and test Wallet', () => {
 
   test('is_validsignature', async () => {
     const msg = '0x749552d5a30f49c46e5e07f20bfc5dbe7b22cf90fcf7848b4a7ff0270400e79';
-    const signature = await signer.sign(msg);
+    const signature = await signer.sign(msg, false);
 
     const res = await account.verifyMessageHash(msg, signature);
 
@@ -68,9 +69,12 @@ describe('deploy and test Wallet', () => {
     );
 
     expect(code).toBe('TRANSACTION_RECEIVED');
-    await defaultProvider.waitForTransaction(transaction_hash);
+    await provider.waitForTransaction(transaction_hash);
 
     const response = await dapp.get_number(account.address);
+
+    console.log(response);
+
     expect(number.toBN(response.number as string).toString()).toStrictEqual('666');
   });
 });

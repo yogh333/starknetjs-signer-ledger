@@ -1,4 +1,4 @@
-import Stark from '@yogh/hw-app-starknet';
+import Stark from '@ledgerhq/hw-app-starknet';
 import Transport from '@ledgerhq/hw-transport';
 import TransportWebUSB from '@ledgerhq/hw-transport-webusb';
 
@@ -12,7 +12,6 @@ import {
   typedData,
   transaction,
   Abi,
-  number,
 } from 'starknet';
 
 function toHexString(byteArray: Uint8Array): string {
@@ -34,12 +33,17 @@ export class LedgerSigner implements SignerInterface {
 
   public constructor(derivationPath: string, transport?: Transport) {
     this.derivationPath = derivationPath;
-    if (transport) {
+    if (transport !== undefined) {
       this.transport = transport;
       this.external_transport_flag = true;
     } else this.external_transport_flag = false;
   }
 
+   /**
+   * Get the Starknet public key
+   * 
+   * @returns {string} the public key
+   */
   public async getPubKey(): Promise<string> {
     try {
       if (this.external_transport_flag && !this.transport) {
@@ -58,6 +62,13 @@ export class LedgerSigner implements SignerInterface {
     }
   }
 
+   /**
+   * Sign a Starknet transaction
+   * 
+   * @param {Invocation[]}  transactions - arrays of transactions to be signed
+   * @param {InvocationsSignerDetails} transactionsDetail - addtional information about transactions
+   * @returns {signature} the tx signature
+   */
   public async signTransaction(
     transactions: Invocation[],
     transactionsDetail: InvocationsSignerDetails,
@@ -66,7 +77,8 @@ export class LedgerSigner implements SignerInterface {
     if (abis && abis.length !== transactions.length) {
       throw new Error('ABI must be provided for each transaction or no transaction');
     }
-    // now use abi to display decoded data somewhere, but as this signer is headless, we can't do that
+    
+    // now use abi to display decoded data somewhere
 
     const calldata = transaction.fromCallsToExecuteCalldataWithNonce(
       transactions,
@@ -87,6 +99,13 @@ export class LedgerSigner implements SignerInterface {
     return signature;
   }
 
+   /**
+   * Sign a typed data with the private key set by derivation path
+   * 
+   * @param {typedData.TypedData}  data - data to be signed
+   * @param {string} accountAddress - account address
+   * @returns {signature} the msg signature
+   */
   public async signMessage(data: typedData.TypedData, accountAddress: string): Promise<Signature> {
     const msgHash = typedData.getMessageHash(data, accountAddress);
 
@@ -95,7 +114,14 @@ export class LedgerSigner implements SignerInterface {
     return signature;
   }
 
-  private async sign(msg: string, show: boolean): Promise<Signature> {
+  /**
+   * Sign a bytestring (e.g perdersen hash) with the private key set by derivation path
+   * 
+   * @param {string}  msg - bytestring to be signed
+   * @param {boolean} show - if true, display the msg to be signed
+   * @returns {signature} the msg signature
+   */
+  public async sign(msg: string, show: boolean): Promise<Signature> {
     try {
       if (this.external_transport_flag && !this.transport) {
         throw new Error('Uninitialized transport!');

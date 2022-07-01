@@ -1,6 +1,6 @@
 import { LedgerSigner } from '../src/ledger-signer';
-import { Contract, defaultProvider, number } from 'starknet';
-import { compiledArgentAccount } from './fixtures';
+import { Contract, number } from 'starknet';
+import { compiledOpenZeppelinAccount, getTestProvider } from './fixtures';
 import TransportNodeHid from '@ledgerhq/hw-transport-node-hid';
 import Transport from '@ledgerhq/hw-transport';
 
@@ -13,6 +13,8 @@ describe('deploy and test Wallet', () => {
 
   let contract: Contract;
 
+  const provider = getTestProvider();
+
   beforeAll(async () => {
     transport = await TransportNodeHid.create();
 
@@ -20,25 +22,23 @@ describe('deploy and test Wallet', () => {
 
     const starkKeyPub = await signer.getPubKey();
 
-    const accountResponse = await defaultProvider.deployContract({
-      contract: compiledArgentAccount,
+    const accountResponse = await provider.deployContract({
+      contract: compiledOpenZeppelinAccount,
+      constructorCalldata: [starkKeyPub],
       addressSalt: starkKeyPub,
     });
-
-    contract = new Contract(compiledArgentAccount.abi, accountResponse.address);
     expect(accountResponse.code).toBe('TRANSACTION_RECEIVED');
 
-    const initializeResponse = await contract.initialize(starkKeyPub, '0');
-    expect(initializeResponse.code).toBe('TRANSACTION_RECEIVED');
-
-    await defaultProvider.waitForTransaction(accountResponse.transaction_hash);
+    contract = new Contract(compiledOpenZeppelinAccount.abi, accountResponse.address as string);
+    
+    await provider.waitForTransaction(accountResponse.transaction_hash);
   });
 
   test('verify signature', async () => {
     const msg = '0x749552d5a30f49c46e5e07f20bfc5dbe7b22cf90fcf7848b4a7ff0270400e79';
-    const signature = await signer.sign(msg);
+    const signature = await signer.sign(msg, false);
 
-    const isValid = await defaultProvider.callContract({
+    const isValid = await provider.callContract({
       contractAddress: contract.address,
       entrypoint: 'is_valid_signature',
       calldata: [
@@ -48,6 +48,7 @@ describe('deploy and test Wallet', () => {
         number.toBN(signature[1]).toString(),
       ],
     });
-    expect(isValid).toEqual({ result: [] });
+
+    expect(isValid).toEqual({ result: ['0x1'] });
   });
 });

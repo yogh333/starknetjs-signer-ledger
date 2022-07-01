@@ -1,3 +1,3 @@
 # starknetjs-signer-ledger
 
-implement starknetjs signer interface for Ledger device
+Implementation of Starknet.js Signer interface for Ledger devices
