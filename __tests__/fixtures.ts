@@ -1,15 +1,14 @@
 import fs from 'fs';
 
-import { Account, Provider, ec, json } from 'starknet';
-import { CompiledContract } from 'starknet';
+import { Account, ProviderInterface, RpcProvider, SequencerProvider, ec, json } from 'starknet';
+import { CompiledContract, DeployContractPayload } from 'starknet';
+import { shortString } from 'starknet';
 
 const readContract = (name: string): CompiledContract =>
   json.parse(fs.readFileSync(`./__mocks__/${name}.json`).toString('ascii'));
 
 export const compiledOpenZeppelinAccount = readContract('Account');
 export const compiledErc20 = readContract('ERC20');
-export const compiledTypeTransformation = readContract('contract');
-export const compiledMulticall = readContract('multicall');
 export const compiledTestDapp = readContract('TestDapp');
 
 const DEFAULT_TEST_PROVIDER_BASE_URL = 'http://127.0.0.1:5050/';
@@ -18,10 +17,21 @@ const DEFAULT_TEST_ACCOUNT_ADDRESS = // run `starknet-devnet --seed 0` and this 
 const DEFAULT_TEST_ACCOUNT_PRIVATE_KEY = '0xe3e70682c2094cac629f6fbed82c07cd';
 
 const BASE_URL = process.env.TEST_PROVIDER_BASE_URL || DEFAULT_TEST_PROVIDER_BASE_URL;
-export const IS_DEVNET = !BASE_URL.includes('starknet.io');
+const RPC_URL = process.env.TEST_RPC_URL;
+
+const IS_RPC = !!RPC_URL;
+const IS_RPC_DEVNET = Boolean(
+  RPC_URL && (RPC_URL.includes('localhost') || RPC_URL.includes('127.0.0.1'))
+);
+const IS_SEQUENCER = !IS_RPC;
+const IS_SEQUENCER_DEVNET = !BASE_URL.includes('starknet.io');
+export const IS_SEQUENCER_GOERLI = BASE_URL === 'https://alpha4.starknet.io';
+export const IS_DEVNET = IS_SEQUENCER ? IS_SEQUENCER_DEVNET : IS_RPC_DEVNET;
 
 export const getTestProvider = () => {
-  const provider = new Provider({ baseUrl: BASE_URL });
+  const provider = RPC_URL
+    ? new RpcProvider({ nodeUrl: RPC_URL })
+    : new SequencerProvider({ baseUrl: BASE_URL });
 
   if (IS_DEVNET) {
     // accelerate the tests when running locally
@@ -35,16 +45,34 @@ export const getTestProvider = () => {
 };
 
 // test account with fee token balance
-export const getTestAccount = () => {
-  const provider = getTestProvider();
+export const getTestAccount = (provider: ProviderInterface) => {
+  let testAccountAddress = process.env.TEST_ACCOUNT_ADDRESS;
+  let testAccountPrivateKey = process.env.TEST_ACCOUNT_PRIVATE_KEY;
 
-  const testAccountAddress = process.env.TEST_ACCOUNT_ADDRESS || DEFAULT_TEST_ACCOUNT_ADDRESS;
-  const testAccountPrivateKey =
-    process.env.TEST_ACCOUNT_PRIVATE_KEY || DEFAULT_TEST_ACCOUNT_PRIVATE_KEY;
+  if (!IS_DEVNET) {
+    if (!testAccountPrivateKey) {
+      throw new Error('TEST_ACCOUNT_PRIVATE_KEY is not set');
+    }
+
+    if (!testAccountAddress) {
+      throw new Error('TEST_ACCOUNT_ADDRESS is not set');
+    }
+  } else {
+    testAccountAddress = DEFAULT_TEST_ACCOUNT_ADDRESS;
+    testAccountPrivateKey = DEFAULT_TEST_ACCOUNT_PRIVATE_KEY;
+  }
 
   return new Account(provider, testAccountAddress, ec.getKeyPair(testAccountPrivateKey));
 };
 
-export const testIf = (condition: boolean) => (condition ? test : test.skip);
-export const testIfDevnet = testIf(IS_DEVNET);
-export const testIfNotDevnet = testIf(!IS_DEVNET);
+const describeIf = (condition: boolean) => (condition ? describe : describe.skip);
+export const describeIfSequencer = describeIf(IS_DEVNET);
+export const describeIfRpc = describeIf(IS_RPC);
+export const describeIfNotDevnet = describeIf(!IS_DEVNET);
+
+export const getERC20DeployPayload = (recipient: string): DeployContractPayload => {
+  return {
+    contract: compiledErc20,
+    constructorCalldata: [shortString.encodeShortString('Token'), shortString.encodeShortString('ERC20'), recipient],
+  };
+};

@@ -1,16 +1,18 @@
-import Stark from '@ledgerhq/hw-app-starknet';
+import { 
+  Stark,
+  Calldata, 
+  TxDetails
+} from '@ledgerhq/hw-app-starknet';
 import Transport from '@ledgerhq/hw-transport';
-import TransportWebUSB from '@ledgerhq/hw-transport-webusb';
 
 import {
   SignerInterface,
-  Invocation,
+  DeclareSignerDetails,
+  Call,
   InvocationsSignerDetails,
   Signature,
   encode,
-  hash,
   typedData,
-  transaction,
   Abi,
 } from 'starknet';
 
@@ -21,22 +23,14 @@ function toHexString(byteArray: Uint8Array): string {
 }
 
 export class LedgerSigner implements SignerInterface {
-  public derivationPath: string;
+  
+  public derivationPath: string
 
-  private transport: Transport | undefined;
-  private external_transport_flag: boolean;
+  private ledger: Stark
 
-  static async askPermission(): Promise<void> {
-    const transport = await TransportWebUSB.create();
-    await transport.close();
-  }
-
-  public constructor(derivationPath: string, transport?: Transport) {
-    this.derivationPath = derivationPath;
-    if (transport !== undefined) {
-      this.transport = transport;
-      this.external_transport_flag = true;
-    } else this.external_transport_flag = false;
+  public constructor(derivationPath: string, transport: Transport) {
+    this.derivationPath = derivationPath
+    this.ledger = new Stark(transport)
   }
 
    /**
@@ -45,58 +39,53 @@ export class LedgerSigner implements SignerInterface {
    * @returns {string} the public key
    */
   public async getPubKey(): Promise<string> {
-    try {
-      if (this.external_transport_flag && !this.transport) {
-        throw new Error('Uninitialized transport!');
-      } else if (!this.external_transport_flag) {
-        this.transport = await TransportWebUSB.create();
-      }
-      const app = new Stark(this.transport as Transport);
-      const { publicKey } = await app.getPubKey(this.derivationPath);
-      if (!this.external_transport_flag) {
-        await this.transport?.close();
-      }
-      return `0x${toHexString(publicKey).slice(2, 2 + 64)}`;
-    } catch (err) {
-      throw err;
-    }
+    
+      const { publicKey } = await this.ledger.getPubKey(this.derivationPath)
+      
+      return `0x${toHexString(publicKey).slice(2, 2 + 64)}`
   }
 
    /**
-   * Sign a Starknet transaction
+   * Sign a Starknet invoke transaction
    * 
    * @param {Invocation[]}  transactions - arrays of transactions to be signed
    * @param {InvocationsSignerDetails} transactionsDetail - addtional information about transactions
    * @returns {signature} the tx signature
    */
   public async signTransaction(
-    transactions: Invocation[],
+    transactions: Call[],
     transactionsDetail: InvocationsSignerDetails,
     abis?: Abi[]
   ): Promise<Signature> {
-    if (abis && abis.length !== transactions.length) {
-      throw new Error('ABI must be provided for each transaction or no transaction');
-    }
     
-    // now use abi to display decoded data somewhere
+    if (transactions.length != 1) {
+      throw new Error('Signing multiple transactions on device not yet implemented')
+    }
 
-    const calldata = transaction.fromCallsToExecuteCalldataWithNonce(
-      transactions,
-      transactionsDetail.nonce
-    );
+    if (abis && abis.length !== transactions.length) {
+      throw new Error('ABI must be provided for each transaction or no transaction')
+    }
 
-    const msgHash = hash.calculcateTransactionHash(
-      transactionsDetail.walletAddress,
-      transactionsDetail.version,
-      hash.getSelectorFromName('__execute__'),
-      calldata,
-      transactionsDetail.maxFee,
-      transactionsDetail.chainId
-    );
+    const tx: Calldata = {
+      contractAddress: transactions[0].contractAddress,
+      entrypoint: transactions[0].entrypoint,
+      calldata: transactions[0].calldata ? transactions[0].calldata as string[]:undefined
+    }
 
-    const signature = await this.sign(msgHash, transactionsDetail.maxFee == 0 ? false : true);
+    const txDetails: TxDetails = {
+      nonce: transactionsDetail.nonce,
+      maxFee: transactionsDetail.maxFee,
+      version: transactionsDetail.version,
+      accountAddress: transactionsDetail.walletAddress,
+      chainId: transactionsDetail.chainId
+    }
+  
+    const response = await this.ledger.signTx(this.derivationPath, tx, txDetails, abis?.pop())
 
-    return signature;
+    return [
+      encode.addHexPrefix(toHexString(response.r)),
+      encode.addHexPrefix(toHexString(response.s)),
+    ]
   }
 
    /**
@@ -122,23 +111,16 @@ export class LedgerSigner implements SignerInterface {
    * @returns {signature} the msg signature
    */
   public async sign(msg: string, show: boolean): Promise<Signature> {
-    try {
-      if (this.external_transport_flag && !this.transport) {
-        throw new Error('Uninitialized transport!');
-      } else if (!this.external_transport_flag) {
-        this.transport = await TransportWebUSB.create();
-      }
-      const app = new Stark(this.transport as Transport);
 
-      const response = await app.signFelt(this.derivationPath, msg, show);
-
-      if (!this.external_transport_flag) await this.transport?.close();
-      return [
+    const response = await this.ledger.sign(this.derivationPath, msg, show)
+    
+    return [
         encode.addHexPrefix(toHexString(response.r)),
         encode.addHexPrefix(toHexString(response.s)),
-      ];
-    } catch (err) {
-      throw err;
-    }
+    ]
+  }
+
+  public async signDeclareTransaction(transaction: DeclareSignerDetails): Promise<Signature> {
+    throw new Error('not implemented')
   }
 }
